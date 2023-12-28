@@ -241,6 +241,8 @@ def runAllocators(linesByColor, numBuckets):
   for i in range(numBuckets):
     if all([len(al) == 0 for al in allocators]):
       return buckets
+    if i == numBuckets: ## todo - not handling allocators with no intervals properly - need to delete items with zero count from the count dict and use it as the __len__ src?
+      return buckets
     maxCount, maxRange, maxColor, ballIds = popMaxAllocator(allocatorsByColor)
     # print()
     buckets.append((maxColor, (maxRange[1]-maxRange[0])/2, maxCount, maxRange, ballIds))
@@ -254,10 +256,10 @@ def runAllocators(linesByColor, numBuckets):
 
 
 if __name__ == "__main__":
-  inputStr = open("input0.txt").read()
+  inputStr = open("perfTest0.txt").read()
   parsedLines = parseBallFile(inputStr)
   linesByColor = splitLinesByColor(parsedLines)
-  buckets = runAllocators(linesByColor, 2)
+  buckets = runAllocators(linesByColor, 1)
   print()
   for b in buckets:
     print(b)
