@@ -67,6 +67,9 @@ class CountRangeGreedyAllocator:
     self.rangePoints = rangePoints
     self.priorityQueue = priorityQueue
   
+  def __len__(self):
+    return len(self.priorityQueue)
+  
   def returnBucketLabel(self):
     # find the (count, dense-range) with the most ball intersections
     # this returns the value, removes it from the heap, and queues up the next-highest value
@@ -74,7 +77,7 @@ class CountRangeGreedyAllocator:
     count = -count # return count to it's original positive value
 
     # get all balls that intersect with the dense range
-    overlapBallIntervals = self.ballRangeTree.overlap(ovrg) #[{begin:number, end:number, data:any}]
+    overlapBallIntervals = self.ballRangeTree.overlap(ovrg[0], ovrg[1]) #[{begin:number, end:number, data:any}]
     ballIds = [interval.data for interval in overlapBallIntervals]
 
     # remove all balls that intersect with the dense range
@@ -87,6 +90,7 @@ class CountRangeGreedyAllocator:
          oldCount = self.intersectRangeCounts[(i2d.begin, i2d.end)]
          newCount = oldCount-1
          self.intersectRangeCounts[(i2d.begin, i2d.end)] = newCount
+         print("heap", self.color, self.priorityQueue.heap)
          self.priorityQueue.reprioritize_item((i2d.begin, i2d.end), newCount)
 
     return (count, self.color, ballIds)
@@ -95,7 +99,7 @@ class CountRangeGreedyAllocator:
   def hasRangesLeft(self):
     return len(self.heap) > 0
 
-  def peekCount(self):
+  def peek(self):
     return self.priorityQueue.peek()
      
 
@@ -123,6 +127,12 @@ def createBucketAllocator(balls, color): # tuple of (id, color, low, high)
     intersectRangesTree.addi(low, high)
     intersectRangeCounts[ovrg] = len(ballRangeTree.overlap(low, high))
   
+  # print(color)
+  # for irc in intersectRangeCounts:
+  #   print("    ", intersectRangeCounts[irc], irc)
+  # print(ballRangeTree)
+  # print()
+
   #create a priority queue so you always know which dense range has the most intersecting balls
   priorityQueue = MaxPriorityQueue()
   for ovrg in intersectRangeCounts:
@@ -132,12 +142,12 @@ def createBucketAllocator(balls, color): # tuple of (id, color, low, high)
   return CountRangeGreedyAllocator(color, ballRangeTree, intersectRangesTree, intersectRangeCounts, rangePointList, priorityQueue)
   
   
-def parseLine(line):
+def parseLine(line): #input file is a list of lines (id: int, color: string, start: float, end: float), with blank lines
   split = line.split(" ")
-  return (int(split[0], split[1], float(split[2], float(split[3]))))
+  return (int(split[0]), split[1], float(split[2]), float(split[3]))
 
 def parseBallFile(fileString):
-  lines = [parseLine(l) for l in fileString.split("\n")]
+  lines = [parseLine(l) for l in fileString.split("\n") if len(l) > 0]
   return lines
 
 
@@ -158,14 +168,18 @@ def popMaxAllocator(allocatorsByColor):
   maxRange = (0, 0)
 
   for color in allocatorsByColor:
-    allocator = allocatorsByColor[0]
+    allocator = allocatorsByColor[color]
     if len(allocator) == 0:
       continue
-    countVal, range = allocator.peekCount()[0]
-    if countVal > maxCount:
+    peekCount, peekRange = allocator.peek()
+    print("max allocator run", color, peekCount, peekRange, peekCount > maxCount)
+    if peekCount > maxCount:
+      maxCount = peekCount
       maxColor = color
-      maxRange = range
+      maxRange = peekRange
   
+  allocatorsByColor[maxColor].returnBucketLabel()
+  print("max allocator result", maxCount, maxRange, maxColor)
   return maxCount, maxRange, maxColor
   
 
@@ -181,7 +195,8 @@ def runAllocators(linesByColor, numBuckets):
     if all([len(al) == 0 for al in allocators]):
       return buckets
     maxCount, maxRange, maxColor = popMaxAllocator(allocatorsByColor)
-    buckets.append((color, (maxRange[1]-maxRange[0])/2))
+    print()
+    buckets.append((maxColor, (maxRange[1]-maxRange[0])/2, maxCount, maxRange))
   
   return buckets
     
@@ -192,7 +207,10 @@ def runAllocators(linesByColor, numBuckets):
 
 
 if __name__ == "__main__":
-  inputStr = open("input.txt").read()
+  inputStr = open("input0.txt").read()
   parsedLines = parseBallFile(inputStr)
   linesByColor = splitLinesByColor(parsedLines)
-  buckets = runAllocators(linesByColor, 10)
+  buckets = runAllocators(linesByColor, 1)
+  print()
+  for b in buckets:
+    print(b)

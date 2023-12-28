@@ -1,0 +1,7 @@
+1 red 0 10
+2 red 1 11
+3 red 2 12
+
+4 blue 0 10
+5 blue 1 11
+6 blue 2 12
