@@ -7,23 +7,63 @@ def rangesOverlap(lowA, highA, lowB, highB):
   return lowA <= highB and lowB <= highA 
 
 
+import heapq
+
+class MaxPriorityQueue:
+    def __init__(self):
+        self.heap = []
+        self.entry_finder = {}  # mapping of items to entries
+        self.REMOVED = '<removed-item>'  # placeholder for a removed item
+        self.counter = 0  # unique sequence count
+
+    def add_item(self, item, priority=0):
+        """Add a new item or update the priority of an existing item"""
+        if item in self.entry_finder:
+            self.remove_item(item)
+        count = self.counter
+        entry = [-priority, count, item]  # negative priority for max heap
+        self.entry_finder[item] = entry
+        heapq.heappush(self.heap, entry)
+        self.counter += 1
+
+    def remove_item(self, item):
+        """Mark an existing item as REMOVED. Raise KeyError if not found."""
+        entry = self.entry_finder.pop(item)
+        entry[-1] = self.REMOVED
+
+    def pop_item(self):
+        """Remove and return the highest priority item. Raise KeyError if empty."""
+        while self.heap:
+            priority, count, item = heapq.heappop(self.heap)
+            if item is not self.REMOVED:
+                del self.entry_finder[item]
+                return -priority, item
+        raise KeyError('pop from an empty priority queue')
+
+    def reprioritize_item(self, item, new_priority):
+        """Change the priority of an existing item. Raise KeyError if not found."""
+        if item not in self.entry_finder:
+            raise KeyError(f'item {item} not found')
+        self.add_item(item, new_priority)
+
 class CountRangeGreedyAllocator:
-  def __init__(self, color, ballRangeTree, intersectRangesTree, intersectRangeCounts, rangePoints, heap):
+  def __init__(self, color, ballRangeTree, intersectRangesTree, intersectRangeCounts, rangePoints, priorityQueue):
     self.color = color
     self.ballRangeTree = ballRangeTree
     self.intersectRangesTree = intersectRangesTree
     self.intersectRangeCounts = intersectRangeCounts
     self.rangePoints = rangePoints
-    self.heap = heap
+    self.priorityQueue = priorityQueue
   
   def returnBucketLabel(self):
     # find the (count, dense-range) with the most ball intersections
     # this returns the value, removes it from the heap, and queues up the next-highest value
-    (count, ovrg) = heapq.heappop(self.heap) 
+    (count, ovrg) = self.priorityQueue.pop_item()
     count = -count # return count to it's original positive value
 
     # get all balls that intersect with the dense range
-    ballIds = [interval.data for interval in self.ballRangeTree.overlap(ovrg)]
+    overlapBallIntervals = self.ballRangeTree.overlap(ovrg) #[{begin:number, end:number, data:any}]
+    ballIds = [interval.data for interval in overlapBallIntervals]
 
     # remove all balls that intersect with the dense range
     self.ballRangeTree.remove_overlap(ovrg[0], ovrg[1])
@@ -62,14 +102,16 @@ def createRangeCountDataStructures(balls, color): # tuple of (id, color, low, hi
   
   #create a priority queue so you always know which dense range has the most intersecting balls
   heap = []
+  priorityQueue = MaxPriorityQueue()
   for ovrg in intersectRangeCounts:
     count = intersectRangeCounts[ovrg]
     heap.append((-count, ovrg)) # store count as negative because python heap is min heap, and we want a max heap
+    priorityQueue.add_item(ovrg, count)
   
   #turn the list into a heap
   heapq.heapify(heap)
 
-  return CountRangeGreedyAllocator(color, ballRangeTree, intersectRangesTree, intersectRangeCounts, rangePointList, heap)
+  return CountRangeGreedyAllocator(color, ballRangeTree, intersectRangesTree, intersectRangeCounts, rangePointList, priorityQueue)
   
   
 
