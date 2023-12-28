@@ -30,9 +30,20 @@ class MaxPriorityQueue:
     self.counter += 1
 
   def remove_item(self, item):
-    """Mark an existing item as REMOVED. Raise KeyError if not found."""
-    entry = self.entry_finder.pop(item)
-    entry[-1] = self.REMOVED
+    """Mark an existing item as REMOVED and move it to the end of the heap."""
+    if item not in self.entry_finder:
+      raise KeyError(f'Item {item} not found')
+    entry_index = self.heap.index(self.entry_finder[item])
+    # Set priority to negative infinity and update in the heap
+    self.heap[entry_index][0] = float('-inf')
+    self._sift_up(entry_index)
+    # Remove the item from the top of the heap and the entry finder
+    self.heap.pop(0)
+    del self.entry_finder[item]
+    # Restore heap order
+    if self.heap:
+      moved_item = self.heap.pop()
+      heapq.heappush(self.heap, moved_item)
 
   def pop_item(self):
     """Remove and return the highest priority item. Raise KeyError if empty."""
@@ -47,7 +58,39 @@ class MaxPriorityQueue:
     """Change the priority of an existing item. Raise KeyError if not found."""
     if item not in self.entry_finder:
       raise KeyError(f'Item {item} not found')
-    self.add_item(item, new_priority)
+    entry_index = self.heap.index(self.entry_finder[item])
+    self.heap[entry_index][0] = -new_priority  # Update priority
+    self._sift_down(entry_index)
+    self._sift_up(entry_index)
+
+  def _sift_up(self, idx):
+    """Move the item at the given index up to its correct position."""
+    item = self.heap[idx]
+    while idx > 0:
+      parent_idx = (idx - 1) >> 1
+      parent = self.heap[parent_idx]
+      if parent <= item:
+        break
+      self.heap[idx] = parent
+      idx = parent_idx
+    self.heap[idx] = item
+
+  def _sift_down(self, idx):
+    """Move the item at the given index down to its correct position."""
+    end_idx = len(self.heap)
+    start_idx = idx
+    item = self.heap[idx]
+    child_idx = 2*idx + 1
+    while child_idx < end_idx:
+      right_idx = child_idx + 1
+      if right_idx < end_idx and self.heap[right_idx] < self.heap[child_idx]:
+        child_idx = right_idx
+      if self.heap[child_idx] >= item:
+        break
+      self.heap[idx] = self.heap[child_idx]
+      idx = child_idx
+      child_idx = 2*idx + 1
+    self.heap[idx] = item
 
   def peek(self):
     """Return the highest priority item without removing it. Raise KeyError if empty."""
@@ -57,6 +100,7 @@ class MaxPriorityQueue:
         return -priority, item
       heapq.heappop(self.heap)  # Remove the removed item and continue
     raise KeyError('peek from an empty priority queue')
+
 
 class CountRangeGreedyAllocator:
   def __init__(self, color, ballRangeTree, intersectRangesTree, intersectRangeCounts, rangePoints, priorityQueue):
@@ -74,6 +118,7 @@ class CountRangeGreedyAllocator:
     # find the (count, dense-range) with the most ball intersections
     # this returns the value, removes it from the heap, and queues up the next-highest value
     (count, ovrg) = self.priorityQueue.pop_item()
+    self.intersectRangesTree.remove_overlap(ovrg[0], ovrg[1])
     count = -count # return count to it's original positive value
 
     # get all balls that intersect with the dense range
@@ -90,8 +135,10 @@ class CountRangeGreedyAllocator:
          oldCount = self.intersectRangeCounts[(i2d.begin, i2d.end)]
          newCount = oldCount-1
          self.intersectRangeCounts[(i2d.begin, i2d.end)] = newCount
-         print("heap", self.color, self.priorityQueue.heap)
+        #  print("heap pre", self.color, self.priorityQueue.heap)
          self.priorityQueue.reprioritize_item((i2d.begin, i2d.end), newCount)
+        #  print("heap post", self.color, self.priorityQueue.heap)
+        #  print()
 
     return (count, self.color, ballIds)
   
@@ -172,15 +219,15 @@ def popMaxAllocator(allocatorsByColor):
     if len(allocator) == 0:
       continue
     peekCount, peekRange = allocator.peek()
-    print("max allocator run", color, peekCount, peekRange, peekCount > maxCount)
+    # print("max allocator run", color, peekCount, peekRange, peekCount > maxCount)
     if peekCount > maxCount:
       maxCount = peekCount
       maxColor = color
       maxRange = peekRange
   
-  allocatorsByColor[maxColor].returnBucketLabel()
-  print("max allocator result", maxCount, maxRange, maxColor)
-  return maxCount, maxRange, maxColor
+  topCount, topColor, ballIds = allocatorsByColor[maxColor].returnBucketLabel()
+  # print("max allocator result", maxCount, maxRange, maxColor)
+  return maxCount, maxRange, maxColor, ballIds
   
 
 
@@ -194,9 +241,9 @@ def runAllocators(linesByColor, numBuckets):
   for i in range(numBuckets):
     if all([len(al) == 0 for al in allocators]):
       return buckets
-    maxCount, maxRange, maxColor = popMaxAllocator(allocatorsByColor)
-    print()
-    buckets.append((maxColor, (maxRange[1]-maxRange[0])/2, maxCount, maxRange))
+    maxCount, maxRange, maxColor, ballIds = popMaxAllocator(allocatorsByColor)
+    # print()
+    buckets.append((maxColor, (maxRange[1]-maxRange[0])/2, maxCount, maxRange, ballIds))
   
   return buckets
     
@@ -210,7 +257,7 @@ if __name__ == "__main__":
   inputStr = open("input0.txt").read()
   parsedLines = parseBallFile(inputStr)
   linesByColor = splitLinesByColor(parsedLines)
-  buckets = runAllocators(linesByColor, 1)
+  buckets = runAllocators(linesByColor, 2)
   print()
   for b in buckets:
     print(b)
