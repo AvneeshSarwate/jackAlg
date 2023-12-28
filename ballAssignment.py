@@ -68,7 +68,14 @@ class CountRangeGreedyAllocator:
     # remove all balls that intersect with the dense range
     self.ballRangeTree.remove_overlap(ovrg[0], ovrg[1])
 
-    # TODO - need to update the intersectRangeCounts and re-heapify
+    # TODO - is there a way to make this not n^2?
+    for obi in overlapBallIntervals:
+      intervalsToDecrement = self.intersectRangesTree.overlap(obi.begin, obi.end)
+      for i2d in intervalsToDecrement:
+         oldCount = self.intersectRangeCounts[(i2d.begin, i2d.end)]
+         newCount = oldCount-1
+         self.intersectRangeCounts[(i2d.begin, i2d.end)] = newCount
+         self.priorityQueue.reprioritize_item((i2d.begin, i2d.end), newCount)
 
     return (count, self.color, ballIds)
   
