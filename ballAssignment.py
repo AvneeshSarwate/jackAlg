@@ -10,41 +10,53 @@ def rangesOverlap(lowA, highA, lowB, highB):
 import heapq
 
 class MaxPriorityQueue:
-    def __init__(self):
-        self.heap = []
-        self.entry_finder = {}  # mapping of items to entries
-        self.REMOVED = '<removed-item>'  # placeholder for a removed item
-        self.counter = 0  # unique sequence count
+  def __init__(self):
+    self.heap = []
+    self.entry_finder = {}  # mapping of items to entries
+    self.REMOVED = '<removed-item>'  # placeholder for a removed item
+    self.counter = 0  # unique sequence count
+  
+  def __len__(self):
+    return len(self.heap)
 
-    def add_item(self, item, priority=0):
-        """Add a new item or update the priority of an existing item"""
-        if item in self.entry_finder:
-            self.remove_item(item)
-        count = self.counter
-        entry = [-priority, count, item]  # negative priority for max heap
-        self.entry_finder[item] = entry
-        heapq.heappush(self.heap, entry)
-        self.counter += 1
+  def add_item(self, item, priority=0):
+    """Add a new item or update the priority of an existing item"""
+    if item in self.entry_finder:
+      self.remove_item(item)
+    count = self.counter
+    entry = [-priority, count, item]  # negative priority for max heap
+    self.entry_finder[item] = entry
+    heapq.heappush(self.heap, entry)
+    self.counter += 1
 
-    def remove_item(self, item):
-        """Mark an existing item as REMOVED. Raise KeyError if not found."""
-        entry = self.entry_finder.pop(item)
-        entry[-1] = self.REMOVED
+  def remove_item(self, item):
+    """Mark an existing item as REMOVED. Raise KeyError if not found."""
+    entry = self.entry_finder.pop(item)
+    entry[-1] = self.REMOVED
 
-    def pop_item(self):
-        """Remove and return the highest priority item. Raise KeyError if empty."""
-        while self.heap:
-            priority, count, item = heapq.heappop(self.heap)
-            if item is not self.REMOVED:
-                del self.entry_finder[item]
-                return -priority, item
-        raise KeyError('pop from an empty priority queue')
+  def pop_item(self):
+    """Remove and return the highest priority item. Raise KeyError if empty."""
+    while self.heap:
+      priority, count, item = heapq.heappop(self.heap)
+      if item is not self.REMOVED:
+        del self.entry_finder[item]
+        return -priority, item
+    raise KeyError('pop from an empty priority queue')
 
-    def reprioritize_item(self, item, new_priority):
-        """Change the priority of an existing item. Raise KeyError if not found."""
-        if item not in self.entry_finder:
-            raise KeyError(f'item {item} not found')
-        self.add_item(item, new_priority)
+  def reprioritize_item(self, item, new_priority):
+    """Change the priority of an existing item. Raise KeyError if not found."""
+    if item not in self.entry_finder:
+      raise KeyError(f'Item {item} not found')
+    self.add_item(item, new_priority)
+
+  def peek(self):
+    """Return the highest priority item without removing it. Raise KeyError if empty."""
+    while self.heap:
+      priority, count, item = self.heap[0]
+      if item is not self.REMOVED:
+        return -priority, item
+      heapq.heappop(self.heap)  # Remove the removed item and continue
+    raise KeyError('peek from an empty priority queue')
 
 class CountRangeGreedyAllocator:
   def __init__(self, color, ballRangeTree, intersectRangesTree, intersectRangeCounts, rangePoints, priorityQueue):
@@ -83,8 +95,12 @@ class CountRangeGreedyAllocator:
   def hasRangesLeft(self):
     return len(self.heap) > 0
 
+  def peekCount(self):
+    return self.priorityQueue.peek()
+     
 
-def createRangeCountDataStructures(balls, color): # tuple of (id, color, low, high)
+
+def createBucketAllocator(balls, color): # tuple of (id, color, low, high)
   ballRangeTree = intervaltree.IntervalTree() # the collection of ranges of balls in an efficient data structure
   intersectRangesTree = intervaltree.IntervalTree()
   rangePoints = set() # all of the different points in the ranges of the balls
@@ -108,18 +124,75 @@ def createRangeCountDataStructures(balls, color): # tuple of (id, color, low, hi
     intersectRangeCounts[ovrg] = len(ballRangeTree.overlap(low, high))
   
   #create a priority queue so you always know which dense range has the most intersecting balls
-  heap = []
   priorityQueue = MaxPriorityQueue()
   for ovrg in intersectRangeCounts:
     count = intersectRangeCounts[ovrg]
-    heap.append((-count, ovrg)) # store count as negative because python heap is min heap, and we want a max heap
     priorityQueue.add_item(ovrg, count)
   
-  #turn the list into a heap
-  heapq.heapify(heap)
-
   return CountRangeGreedyAllocator(color, ballRangeTree, intersectRangesTree, intersectRangeCounts, rangePointList, priorityQueue)
   
   
+def parseLine(line):
+  split = line.split(" ")
+  return (int(split[0], split[1], float(split[2], float(split[3]))))
+
+def parseBallFile(fileString):
+  lines = [parseLine(l) for l in fileString.split("\n")]
+  return lines
 
 
+def splitLinesByColor(parsedLines):
+  linesByColor = {}
+  for pl in parsedLines:
+    id, color, low, high = pl
+    if not color in linesByColor:
+        linesByColor[color] = []
+    linesByColor[color].append(pl)
+
+  return linesByColor
+
+
+def popMaxAllocator(allocatorsByColor):
+  maxCount = -1
+  maxColor = ""
+  maxRange = (0, 0)
+
+  for color in allocatorsByColor:
+    allocator = allocatorsByColor[0]
+    if len(allocator) == 0:
+      continue
+    countVal, range = allocator.peekCount()[0]
+    if countVal > maxCount:
+      maxColor = color
+      maxRange = range
+  
+  return maxCount, maxRange, maxColor
+  
+
+
+def runAllocators(linesByColor, numBuckets):
+  allocatorsByColor = {}
+  for color in linesByColor:
+    allocatorsByColor[color] = createBucketAllocator(linesByColor[color], color)
+  allocators = allocatorsByColor.values()
+
+  buckets = []
+  for i in range(numBuckets):
+    if all([len(al) == 0 for al in allocators]):
+      return buckets
+    maxCount, maxRange, maxColor = popMaxAllocator(allocatorsByColor)
+    buckets.append((color, (maxRange[1]-maxRange[0])/2))
+  
+  return buckets
+    
+
+
+  
+   
+
+
+if __name__ == "__main__":
+  inputStr = open("input.txt").read()
+  parsedLines = parseBallFile(inputStr)
+  linesByColor = splitLinesByColor(parsedLines)
+  buckets = runAllocators(linesByColor, 10)
