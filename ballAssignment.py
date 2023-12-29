@@ -2,11 +2,6 @@ import heapq
 import itertools
 import intervaltree 
 
-
-def rangesOverlap(lowA, highA, lowB, highB):
-  return lowA <= highB and lowB <= highA 
-
-
 import heapq
 
 class MaxPriorityQueue:
@@ -256,10 +251,10 @@ def runAllocators(linesByColor, numBuckets):
 
 
 if __name__ == "__main__":
-  inputStr = open("perfTest0.txt").read()
+  inputStr = open("randRanges0.txt").read()
   parsedLines = parseBallFile(inputStr)
   linesByColor = splitLinesByColor(parsedLines)
-  buckets = runAllocators(linesByColor, 1)
+  buckets = runAllocators(linesByColor, 5)
   print()
   for b in buckets:
-    print(b)
+    print(b[0:4])
