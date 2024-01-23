@@ -98,11 +98,11 @@ class MaxPriorityQueue:
 
 
 class CountRangeGreedyAllocator:
-  def __init__(self, color, ballRangeTree, intersectRangesTree, intersectRangeCounts, rangePoints, priorityQueue):
+  def __init__(self, color, ballRangeTree, intersectRangesTree, intersectRangeScores, rangePoints, priorityQueue):
     self.color = color
     self.ballRangeTree = ballRangeTree
     self.intersectRangesTree = intersectRangesTree
-    self.intersectRangeCounts = intersectRangeCounts
+    self.intersectRangeScores = intersectRangeScores
     self.rangePoints = rangePoints
     self.priorityQueue = priorityQueue
   
@@ -110,32 +110,34 @@ class CountRangeGreedyAllocator:
     return len(self.priorityQueue)
   
   def returnBucketLabel(self):
-    # find the (count, dense-range) with the most ball intersections
+    # find the (score, dense-range) with the most ball intersections
     # this returns the value, removes it from the heap, and queues up the next-highest value
-    (count, ovrg) = self.priorityQueue.pop_item()
+    (score, ovrg) = self.priorityQueue.pop_item()
     self.intersectRangesTree.remove_overlap(ovrg[0], ovrg[1])
-    count = -count # return count to it's original positive value
+    score = -score # return score to it's original positive value
 
     # get all balls that intersect with the dense range
     overlapBallIntervals = self.ballRangeTree.overlap(ovrg[0], ovrg[1]) #[{begin:number, end:number, data:any}]
-    ballIds = [interval.data for interval in overlapBallIntervals]
+    ballIds = [interval.data[0] for interval in overlapBallIntervals]
 
     # remove all balls that intersect with the dense range
+    removedBallScore =  sum([interval.data[1] for interval in self.ballRangeTree.overlaps(ovrg[0], ovrg[1])])
     self.ballRangeTree.remove_overlap(ovrg[0], ovrg[1])
+
 
     # TODO - is there a way to make this not n^2?
     for obi in overlapBallIntervals:
       intervalsToDecrement = self.intersectRangesTree.overlap(obi.begin, obi.end)
       for i2d in intervalsToDecrement:
-         oldCount = self.intersectRangeCounts[(i2d.begin, i2d.end)]
-         newCount = oldCount-1
-         self.intersectRangeCounts[(i2d.begin, i2d.end)] = newCount
+         oldScore = self.intersectRangeScores[(i2d.begin, i2d.end)]
+         newScore = oldScore-removedBallScore
+         self.intersectRangeScores[(i2d.begin, i2d.end)] = newScore
         #  print("heap pre", self.color, self.priorityQueue.heap)
-         self.priorityQueue.reprioritize_item((i2d.begin, i2d.end), newCount)
+         self.priorityQueue.reprioritize_item((i2d.begin, i2d.end), newScore)
         #  print("heap post", self.color, self.priorityQueue.heap)
         #  print()
 
-    return (count, self.color, ballIds)
+    return (score, self.color, ballIds)
   
   # if you have no ranges left, you should also be out of balls 
   def hasRangesLeft(self):
@@ -157,31 +159,33 @@ def createBucketAllocator(balls, color): # tuple of (id, color, low, high)
     id, color, low, high = b
     rangePoints.add(low)
     rangePoints.add(high)
-    ballRangeTree.addi(low, high, id)
+    ballRangeTree.addi(low, high, (id, 10))
 
   rangePointList = sorted(list(rangePoints))
   overlapRanges = itertools.pairwise(rangePointList) # the "dense" ranges created by overlapping all ball ranges
-  intersectRangeCounts = {} # the number of balls that overlap each range of the "dense" range set
+  intersectRangeScores = {} # the number of balls that overlap each range of the "dense" range set
 
   # count the number of balls per "dense" range
   for ovrg in overlapRanges:
     low, high = ovrg
     intersectRangesTree.addi(low, high)
-    intersectRangeCounts[ovrg] = len(ballRangeTree.overlap(low, high))
+    overlaps = ballRangeTree.overlap(low, high)
+    # print("overlaps", list(overlaps)[0].data[1])
+    intersectRangeScores[ovrg] = sum([interval.data[1] for interval in overlaps])
   
   # print(color)
-  # for irc in intersectRangeCounts:
-  #   print("    ", intersectRangeCounts[irc], irc)
+  # for irc in intersectRangeScores:
+  #   print("    ", intersectRangeScores[irc], irc)
   # print(ballRangeTree)
   # print()
 
   #create a priority queue so you always know which dense range has the most intersecting balls
   priorityQueue = MaxPriorityQueue()
-  for ovrg in intersectRangeCounts:
-    count = intersectRangeCounts[ovrg]
-    priorityQueue.add_item(ovrg, count)
+  for ovrg in intersectRangeScores:
+    score = intersectRangeScores[ovrg]
+    priorityQueue.add_item(ovrg, score)
   
-  return CountRangeGreedyAllocator(color, ballRangeTree, intersectRangesTree, intersectRangeCounts, rangePointList, priorityQueue)
+  return CountRangeGreedyAllocator(color, ballRangeTree, intersectRangesTree, intersectRangeScores, rangePointList, priorityQueue)
   
   
 def parseLine(line): #input file is a list of lines (id: int, color: string, start: float, end: float), with blank lines
@@ -251,7 +255,7 @@ def runAllocators(linesByColor, numBuckets):
 
 
 if __name__ == "__main__":
-  inputStr = open("randRanges0.txt").read()
+  inputStr = open("input0.txt").read()
   parsedLines = parseBallFile(inputStr)
   linesByColor = splitLinesByColor(parsedLines)
   buckets = runAllocators(linesByColor, 5)
