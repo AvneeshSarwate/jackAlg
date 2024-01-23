@@ -114,7 +114,6 @@ class CountRangeGreedyAllocator:
     # this returns the value, removes it from the heap, and queues up the next-highest value
     (score, ovrg) = self.priorityQueue.pop_item()
     self.intersectRangesTree.remove_overlap(ovrg[0], ovrg[1])
-    score = -score # return score to it's original positive value
 
     # get all balls that intersect with the dense range
     overlapBallIntervals = self.ballRangeTree.overlap(ovrg[0], ovrg[1]) #[{begin:number, end:number, data:any}]
