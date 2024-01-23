@@ -156,10 +156,10 @@ def createBucketAllocator(balls, color): # tuple of (id, color, low, high)
   # store all of the ball ranges in the range tree
   # extract all of the individual points from all of the ranges
   for b in balls:
-    id, color, low, high = b
+    id, score, color, low, high = b
     rangePoints.add(low)
     rangePoints.add(high)
-    ballRangeTree.addi(low, high, (id, 10))
+    ballRangeTree.addi(low, high, (id, score))
 
   rangePointList = sorted(list(rangePoints))
   overlapRanges = itertools.pairwise(rangePointList) # the "dense" ranges created by overlapping all ball ranges
